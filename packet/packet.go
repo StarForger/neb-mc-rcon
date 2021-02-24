@@ -1,11 +1,12 @@
-package rcon
+package packet
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
-	"strconv" // conversions to and from string
-	"time"
+	"bytes"							// manipulation of byte slices
+	"encoding/binary"   // translation between numbers and byte sequences
+	"errors"						// manipulate errors
+	"io"								// basic interfaces to I/O primitives
+	"strconv" 					// conversions to and from string
+	"time"							// for measuring and displaying time
 )
 
 // From https://wiki.vg/RCON
@@ -18,7 +19,6 @@ import (
 // ----	Type								int32					4
 // ---- Payload						  []byte				>=1 (null terminated)
 // ---- Pad									byte					1
-// ------------------------	TOTAL					>=14
 //
 // Length is the the total size of the packet not including the length itself.
 //
@@ -34,10 +34,12 @@ import (
 // ---- Request							1446/1024 (see note) 
 // ---- Response						4096															
 //
-// Pad is null
+// Pad is null and added during encode
 //
 // NB: Little endian integers
 // NB: Request payload max size is unreliable at 1446. Should be reliable at 1024
+// NB: Packet length (without "length" itself) minimum is 10 (4 + 4 + 1 + 1)
+// NB: Packet length maximum is the payload max plus the packet minimum (4106)
 //
 // ######## RESPONSE ########
 // 
@@ -53,8 +55,13 @@ import (
 // ---- Send request with different Request ID and invalid type (x), wait for response with payload: 'Unknown request x'
 //
 
-const (
-	packetLengthMin			= 10 // not including length
+const (	
+	// Payload length max plus packet length minimum
+	PacketLengthMax			= 4106 
+	// Packet length max plus "length" Int32
+	PacketSizeMax				= 4110
+	// Two Int32 (requestId and type) plus two bytes (payload terminator and pad)
+	PacketLengthMin			= 10 
 
 	typeLoginRequest		= 3
 	typeCommandRequest	= 2
@@ -70,11 +77,10 @@ const (
 type Packet struct {
 	length			int32
 	requestId		int32
-	requestType int32
-	payload			string // parsed to []byte at send
-	// Pad is added at end of buffer	
+	requestType int32   // type named requestType
+	payload			string 	// parsed to []byte at encode 
 	method			string  // for differentiating requestType codes	
-	encoded			[]byte  // entire packet converted to binary	
+	encoded			[]byte  // entire packet encoded to binary	
 }
 
 var ( 
@@ -140,7 +146,7 @@ func (p *Packet) verify() (error) {
 	if p.length > p.GetLengthMax() {
 		return ErrorMaxPayloadLength
 	}
-	if p.length != len(p.payload) + packetLengthMin {
+	if p.length != PacketLengthMin + len(p.payload) {
 		return ErrorMismatchedPayloadLength
 	}
 	return nil
@@ -172,7 +178,7 @@ func (p *Packet) encode() {
 
 func createRequest(int32 id, int32 code, string body) (*Packet, error) {
 	p := &Packet{
-		length: packetLengthMin + len(body),
+		length: PacketLengthMin + len(body),
 		requestId: createRequestId(id),
 		requestType: code,
 		payload: body,

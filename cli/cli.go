@@ -1,23 +1,21 @@
 package cli
 
 import (
-	"/connection"
+	"github.com/StarForger/neb-rcon/conn"
 	"os"
 	"log"
 	"bufio" 																	// implements buffered I/O.
 	"io"
 	"fmt"
 	"strings"
+	"net"
 )
 
-const name = "rcon-cli"
 const prompt = "$> "
 
-
-func Run(string host, int32 port, string password, in io.Reader, out io.Writer) {
+func Run(string host, string password, in io.Reader, out io.Writer) {
 	// Connect
-	url := host + ":" + string(port)
-	conn, err := connection.Dial(url, password)
+	conn, err := connection.Dial(host, password)
 	if err != nil {
 		log.Fatal("Failed to connect to RCON server", err)
 	}
@@ -43,10 +41,9 @@ func Run(string host, int32 port, string password, in io.Reader, out io.Writer) 
 	}
 }
 
-func Execute(string host, int32 port, string password, out io.Writer, string command ...) {
-	// Connect
-	url := host + ":" + string(port)
-	conn, err := connection.Dial(url, password)
+func Execute(string host, string password, out io.Writer, string command ...) {
+	// Connect	
+	conn, err := connection.Dial(host, password)
 	if err != nil {
 		log.Fatal("Failed to connect to RCON server", err)
 	}

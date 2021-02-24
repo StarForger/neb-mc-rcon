@@ -1,0 +1,12 @@
+version: "3.9" 
+services:
+  cobra-init:
+    build: .
+    volumes:
+    - "${PWD}:/usr/src/app"    
+    command: "cobra init --pkg-name github.com/StarForger/neb-rcon"
+  build:
+    build: .
+    volumes:
+    - "${PWD}:/usr/src/app"    
+    command: "go build"      

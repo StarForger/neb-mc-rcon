@@ -1,35 +1,30 @@
-package rcon
+package conn
 
-import (
-	"bytes"
-	"encoding/binary"
-	"errors"
-	"io"
-	"net"
-	"sync"
-	
-	"time"
+import (	
+	"github.com/StarForger/neb-rcon/packet"
+	"errors"						// manipulate errors	
+	"net"								// interface for network I/O
+	"sync"							// basic synchronization primitives such as mutual exclusion locks
+	"time"							// for measuring and displaying time
 )
 
-// Max package length plus "length" size (int32).
-const maxBufferSize = 4110
-
-const timeoutSeconds = 10
+// Timeout 10 seconds
+const timeout = 10 * time.Second
 
 type Connection struct {
 	id				int32
 	conn      net.Conn	
+	buffer   	[]byte	
 	queue 		[]byte
-	buffer   	[]byte
-	lock    	sync.Mutex	
+	lock    	sync.Mutex		
 }
 
 var ( 	
-	ErrorPayloadRead = errors.New("connection: payload response can't be read")
-	ErrorResponseMismatch = errors.New("connection: response type mismatch")
-	ErrorIDMismatch = errors.New("connection: response/request id mismatch")
-	ErrorPassword = errors.New("connection: password incorrect")
-	ErrorUnknown = errors.New("connection: unknown response")	
+	ErrorPayloadRead 				= errors.New("connection: payload response can't be read")
+	ErrorResponseMismatch 	= errors.New("connection: response type mismatch")
+	ErrorIDMismatch 				= errors.New("connection: response/request id mismatch")
+	ErrorPassword 					= errors.New("connection: password incorrect")
+	ErrorUnknown 						= errors.New("connection: unknown response")	
 )
 
 func Dial(string host, string password) (*Connection, error) {
@@ -47,7 +42,7 @@ func Dial(string host, string password) (*Connection, error) {
 }
 
 // TODO improve, reuse login
-func (c *Connection) Execute(string cmd) (string, error) {
+func (c *Connection) Execute(string cmd) (string, error) {	
 	if request, err := CreateCommandRequest(c.id, cmd); err != nil {
 		return nil, err
 	}	
@@ -84,19 +79,6 @@ func (c *Connection) Execute(string cmd) (string, error) {
 
 func (c *Connection) Close() (error) {
 	return c.conn.Close()
-}
-
-func connect(string host) (*Connection)  {
-	const timeout = timeoutSeconds * time.Second
-	conn, err := net.DialTimeout("tcp", host, timeout)
-	if err != nil {
-		return nil, err
-	}
-	c := &Connection{
-		conn: conn,
-		readbuf: make([]byte, maxBufferSize)
-	}
-	 return c, nil
 }
 
 func (c *Connection) login(string password) (*Packet, error) {
@@ -139,7 +121,7 @@ func (c *Connection) login(string password) (*Packet, error) {
 	return loginResponse, nil
 }
 
-func (c *Connection) loginReadAttempt() (*Packet, []byte, error) {
+func (c *Connection) loginReadAttempt() (*Packet, []byte, error) {	
 	if err := c.read(); err != nil {
 		return nil, nil, err
 	}
@@ -147,7 +129,7 @@ func (c *Connection) loginReadAttempt() (*Packet, []byte, error) {
 	return CreateLoginResponse(c.readbuf)		
 }
 
-func (c *Connection) read(timeout time.Duration) (error) {
+func (c *Connection) read() (error) {
 	c.readmu.Lock()
 	defer c.readmu.Unlock()
 
@@ -176,6 +158,18 @@ func (c *Connection) read(timeout time.Duration) (error) {
 	}
 
 	return nil
+}
+
+func connect(string host) (*Connection)  {	
+	conn, err := net.DialTimeout("tcp", host, timeout)
+	if err != nil {
+		return nil, err
+	}
+	c := &Connection{
+		conn: conn,
+		readbuf: make([]byte, Packet.PacketSizeMax)
+	}
+	 return c, nil
 }
 
 
