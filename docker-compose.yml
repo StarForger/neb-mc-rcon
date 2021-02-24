@@ -9,4 +9,4 @@ services:
     build: .
     volumes:
     - "${PWD}:/usr/src/app"    
-    command: "go build"      
+    command: "go build -a -o ./bin"      

@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/cobra"	
 	"github.com/spf13/viper"
 	"net"
-	"strconv"
+	homedir "github.com/mitchellh/go-homedir"
 )
 
 var cfgFile string
@@ -44,15 +44,15 @@ var rootCmd = &cobra.Command{
 	
 	Run: func(cmd *cobra.Command, args []string) { 
 		host := viper.GetString("host")
-		port := strconv.Itoa(viper.GetString("port"))
+		port := viper.GetString("port")
 		pwd := viper.GetString("password")
 
 		uri := net.JoinHostPort(host, port)
 
 		if len(args) == 0 {
-			cli.Run(uri, password, os.Stdin, os.Stdout)
+			cli.Run(uri, pwd, os.Stdin, os.Stdout)
 		} else {
-			cli.Execute(uri, password, os.Stdout, args...)
+			cli.Execute(uri, pwd, os.Stdout, args...)
 		}
 	},
 }
@@ -66,7 +66,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.neb-rcon.yml)")
-	rootCmd.PersistentFlags().String("host", "", "localhost", "RCON server's hostname")
+	rootCmd.PersistentFlags().StringP("host", "h", "localhost", "RCON server's hostname")
 	rootCmd.PersistentFlags().String("password", "", "RCON server's password")
 	rootCmd.PersistentFlags().Int("port", 27015, "RCON port")
 	// rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")

@@ -135,7 +135,7 @@ func (p *Packet) GetMetadata() (name string, payloadMax int32, lengthMax int32) 
 }
 
 func (p *Packet) GetId() (int32) {
-	return p.id
+	return p.requestId
 }
 
 func (p *Packet) GetMethod() (string) {

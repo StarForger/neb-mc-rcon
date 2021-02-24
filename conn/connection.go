@@ -38,7 +38,7 @@ func Dial(hostUri string, password string) (*Connection, error) {
 		return nil, err
 	}
 
-	c.id = loginPacket.requestId
+	c.id = loginPacket.GetId()
 
 	return c, nil
 }
@@ -79,83 +79,87 @@ func (c *Connection) Execute(cmd string) (string, error) {
 	c.queue = overflow
 	c.id = response.GetId()
 
-	return response.GetPayload, nil	
+	return response.GetPayload(), nil	
 }	
 
 func (c *Connection) Close() (error) {
 	return c.conn.Close()
 }
 
-func (c *Connection) login(password string) (*Packet, error) {
+func (c *Connection) login(password string) (*packet.Packet, error) {
 	loginRequest, err := packet.CreateLoginRequest(password)
 	if err != nil {
 		return nil, err
 	}	
 
-	_, err := c.conn.Write(loginRequest.encoded)
+	_, err = c.conn.Write(loginRequest.GetEncoded())
 	if err != nil {
 		return nil, err
 	}
 
 	loginResponse, overflow, err := c.loginReadAttempt()
+	// Retry authentication once (RCON bug)	
+	if err == ErrorUnknown {
+		loginResponse, overflow, err = c.loginReadAttempt()
+	}
 	if err != nil {
 		return nil, err
-	}	
-
-	name, _, _ := loginResponse.GetMetadata()
-	if name == "unknown" {
-		// retry reading on first error. sometimes RCON protocol bugs out.
-		if loginResponse, overflow, err := c.loginReadAttempt(); err != nil {
-			return nil, err
-		}	
-		if name, _, _ = loginResponse.GetMetadata(); name == "unknown" {
-			return nil, ErrorUnknown
-		}
 	}
 
-	if name == "invalid" {
-		return nil, ErrorPassword
-	}		
-
-	if name != "login" || p.method != "response" {
-		return ErrorResponseMismatch
-	}
-
-	if loginResponse.requestId != loginRequest.requestId {
+	if loginResponse.GetId() != loginRequest.GetId() {
 		return nil, ErrorIDMismatch
 	}
 
-	c.queuedbuf = overflow
+	c.queue = overflow
 
 	return loginResponse, nil
 }
 
-func (c *Connection) loginReadAttempt() (*Packet, []byte, error) {	
+func (c *Connection) loginReadAttempt() (*packet.Packet, []byte, error) {	
 	if err := c.read(); err != nil {
 		return nil, nil, err
 	}
 
-	return packet.CreateLoginResponse(c.buffer)		
+	loginResponse, overflow, err := packet.CreateLoginResponse(c.buffer)
+	if err != nil {
+		return nil, nil, err
+	}	
+
+	name, _, _ := loginResponse.GetMetadata()
+
+	if name == "unknown" {
+		return nil, nil, ErrorUnknown
+	}
+
+	if name == "invalid" {
+		return nil, nil, ErrorPassword
+	}		
+
+	if name != "login" || loginResponse.GetMethod() != "response" {
+		return nil, nil, ErrorResponseMismatch
+	}	
+	
+	return loginResponse, overflow, nil
 }
 
 func (c *Connection) read() (error) {
-	c.readmu.Lock()
-	defer c.readmu.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	c.conn.SetReadDeadline(time.Now().Add(timeout))
 	var size int
 	var err error
-	if c.queuedbuf != nil {
-		copy(c.readbuf, c.queuedbuf)
-		size = len(c.queuedbuf)
-		c.queuedbuf = nil
-	} else if size, err = c.conn.Read(c.readbuf); err != nil {
+	if c.queue != nil {
+		copy(c.buffer, c.queue)
+		size = len(c.queue)
+		c.queue = nil
+	} else if size, err = c.conn.Read(c.buffer); err != nil {
 		return err
 	}
 
-	// verify 4 byte length
 	if size < 4 {		
-		if s, err := r.conn.Read(c.readbuf[size:]); err != nil {
+		s, err := c.conn.Read(c.buffer[size:])
+		if err != nil {
 			return err
 		}  
 		size += s
@@ -175,7 +179,7 @@ func connect(hostUri string) (*Connection, error)  {
 	}
 	c := &Connection{
 		conn: conn,
-		readbuf: make([]byte, Packet.PacketSizeMax),
+		buffer: make([]byte, packet.PacketSizeMax),
 	}
 	 return c, nil
 }

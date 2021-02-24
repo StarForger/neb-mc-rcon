@@ -8,14 +8,13 @@ import (
 	"io"
 	"fmt"
 	"strings"
-	"net"
 )
 
 const prompt = "$> "
 
 func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	// Connect
-	conn, err := connection.Dial(hostUri, password)
+	conn, err := conn.Dial(hostUri, password)
 	if err != nil {
 		log.Fatal("Failed to connect to RCON server", err)
 	}
@@ -26,8 +25,9 @@ func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	out.Write([]byte(prompt))
 	// TODO EOF?
 	for input.Scan() {
-		cmd := scanner.Text()
-		response, err := connection.Execute(cmd); err != nil {
+		cmd := input.Text()
+		response, err := conn.Execute(cmd)
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "Run error: ", err.Error())
 			continue
 		}
@@ -36,14 +36,14 @@ func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 		out.Write([]byte(prompt))
 	}
 
-	if err := scanner.Err(); err != nil {
+	if err := input.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "error from input:", err)
 	}
 }
 
 func Execute(hostUri string, password string, out io.Writer, command ... string) {
 	// Connect	
-	conn, err := connection.Dial(hostUri, password)
+	conn, err := conn.Dial(hostUri, password)
 	if err != nil {
 		log.Fatal("Failed to connect to RCON server", err)
 	}
@@ -51,10 +51,11 @@ func Execute(hostUri string, password string, out io.Writer, command ... string)
 
 	// Send commands
 	cmds := strings.Join(command, " ")
-	response, err := connection.Execute(cmds); err != nil {
+	response, err := conn.Execute(cmds)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "Execute error: ", err.Error())
 		return
 	}
 
-	fmt.Fprintln(out, resp)
+	fmt.Fprintln(out, response)
 }
