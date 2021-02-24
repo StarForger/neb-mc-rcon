@@ -13,9 +13,9 @@ import (
 
 const prompt = "$> "
 
-func Run(string host, string password, in io.Reader, out io.Writer) {
+func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	// Connect
-	conn, err := connection.Dial(host, password)
+	conn, err := connection.Dial(hostUri, password)
 	if err != nil {
 		log.Fatal("Failed to connect to RCON server", err)
 	}
@@ -41,9 +41,9 @@ func Run(string host, string password, in io.Reader, out io.Writer) {
 	}
 }
 
-func Execute(string host, string password, out io.Writer, string command ...) {
+func Execute(hostUri string, password string, out io.Writer, command ... string) {
 	// Connect	
-	conn, err := connection.Dial(host, password)
+	conn, err := connection.Dial(hostUri, password)
 	if err != nil {
 		log.Fatal("Failed to connect to RCON server", err)
 	}

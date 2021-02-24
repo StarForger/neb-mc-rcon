@@ -89,26 +89,26 @@ var (
 	ErrorMismatchedPayloadLength = errors.New("packet: payload length mismatch")
 )
 
-func CreateLoginRequest(string password) (*Packet, error) {
+func CreateLoginRequest(password string) (*Packet, error) {
 	return createRequest(0, typeLoginRequest, password)
 }
 
-func CreateCommandRequest(int32 id, string body) (*Packet, error) {
+func CreateCommandRequest(id int32, body string) (*Packet, error) {
 	return createRequest(id, typeCommandRequest, body)
 }
 
-func CreateLoginResponse([]byte payload) (*Packet, []byte, error) {
-	return createResponse(typeLoginResponse, payload)
+func CreateLoginResponse(payload []byte) (*Packet, []byte, error) {
+	return createResponse(payload)
 }
 
-func CreateCommandResponse([]byte payload) (*Packet, []byte, error) {
-	return createResponse(typeCommandResponse, body)
+func CreateCommandResponse(payload []byte) (*Packet, []byte, error) {
+	return createResponse(payload)
 }
 
-func (p *Packet) GetMetadata() (string name, int32 payloadMax, int32 lengthMax) {
+func (p *Packet) GetMetadata() (name string, payloadMax int32, lengthMax int32) {
 	name = "unknown"
 	payloadMax = 0
-	lengthMax = packetTotalMin
+	lengthMax = PacketLengthMin
 	switch p.method {
 	case "request": 
 		if p.requestType == typeLoginRequest {
@@ -134,19 +134,31 @@ func (p *Packet) GetMetadata() (string name, int32 payloadMax, int32 lengthMax) 
 	return
 }
 
-func (p *Packet) GetLengthMax() {
-	_, _, lengthMax := p.getMetadata()
-	return lengthMax 
+func (p *Packet) GetId() (int32) {
+	return p.id
+}
+
+func (p *Packet) GetMethod() (string) {
+	return p.method
+}
+
+func (p *Packet) GetPayload() (string) {
+	return p.payload
+}
+
+func (p *Packet) GetEncoded() ([]byte) {
+	return p.encoded
 }
 
 func (p *Packet) verify() (error) {
-	if p.length < packetTotalMin {
+	if p.length < PacketLengthMin {
 		return ErrorMinPayloadLength
 	}
-	if p.length > p.GetLengthMax() {
+	_, _, lengthMax := p.GetMetadata()
+	if p.length > lengthMax {
 		return ErrorMaxPayloadLength
 	}
-	if p.length != PacketLengthMin + len(p.payload) {
+	if p.length != PacketLengthMin + int32(len(p.payload)) {
 		return ErrorMismatchedPayloadLength
 	}
 	return nil
@@ -176,40 +188,46 @@ func (p *Packet) encode() {
 	p.encoded = buffer.Bytes()
 }
 
-func createRequest(int32 id, int32 code, string body) (*Packet, error) {
+func createRequest(id int32, code int32, body string) (*Packet, error) {
 	p := &Packet{
-		length: PacketLengthMin + len(body),
+		length: PacketLengthMin + int32(len(body)),
 		requestId: createRequestId(id),
 		requestType: code,
 		payload: body,
-		method: "request" 
+		method: "request", 
 	}
-	err := p.verify(); err != nil {
+	if err := p.verify(); err != nil {
 		return nil, err
 	} 
 	p.encode()
 	return p, nil
 }
 
-func createResponse([]byte data) (*Packet, []byte, error) {		
+func createResponse(data []byte ) (*Packet, []byte, error) {		
 	b := bytes.NewBuffer(data)
-	var intCheck string
+	var (
+		intCheck string
+		length int
+		requestId int
+		requestType int
+		payload []byte
+		err error
+	)
 
 	binary.Read(b, binary.LittleEndian, &intCheck)
-	length, err := strconv.Atoi(*intCheck); err != nil {
+	if length, err = strconv.Atoi(intCheck); err != nil {
 		return nil, nil, err
 	}
 	binary.Read(b, binary.LittleEndian, &intCheck)
-	requestId, err := strconv.Atoi(*intCheck); err != nil {
+	if requestId, err = strconv.Atoi(intCheck); err != nil {
 		return nil, nil, err
 	}
 	binary.Read(b, binary.LittleEndian, &intCheck)
-	requestType, err := strconv.Atoi(*intCheck); err != nil {
+	if requestType, err = strconv.Atoi(intCheck); err != nil {
 		return nil, nil, err
 	}
 
-	payload, err := b.ReadBytes(0x00)
-	if err != nil {
+	if payload, err = b.ReadBytes(0x00); err != nil {
 		if err == io.EOF {		
 			payload = payload[:len(payload)-1] // remove null terminator
 		}
@@ -220,26 +238,25 @@ func createResponse([]byte data) (*Packet, []byte, error) {
 		length: int32(length),
 		requestId: int32(requestId),
 		requestType: int32(requestType),
-		payload: int32(payload),
+		payload: string(payload),
 		method: "response",
-		encoded: data 
+		encoded: data, 
 	}
-	err := p.verify(); err != nil {
+	if err := p.verify(); err != nil {
 		return nil, nil, err
 	} 
 	// remainder should just be null terminator but might be start of next packet	
-	if len(b) == 4 + p.length  {
+	if len(data) == 4 + int(p.length)  {
 		return p, nil, nil
 	}
 
-	return p, data[4 + p.length:], nil // remove "length" aswell
+	return p, data[4 + int(p.length):], nil // remove "length" aswell
 } 
 
-func createRequestId(int32 id) (int32) {
-	if id <= 0 || id != id & 0x7fffffff { // prevent max int overflow
+func createRequestId(id int32) (int32) {
+	// prevent max int overflow
+	if id <= 0 || id != id & 0x7fffffff { 
 		return int32((time.Now().UnixNano() / 100000) % 100000)
 	}
-	else {
-		return = id + 1
-	}	
+	return id + 1	
 }

@@ -27,12 +27,14 @@ var (
 	ErrorUnknown 						= errors.New("connection: unknown response")	
 )
 
-func Dial(string host, string password) (*Connection, error) {
-	c, err := connect(host); err != nil {
+func Dial(hostUri string, password string) (*Connection, error) {	
+	c, err := connect(hostUri)
+	if err != nil {
 		return nil, err
 	}
 	
-	loginPacket, err := c.login(password); err != nil {
+	loginPacket, err := c.login(password)
+	if err != nil {
 		return nil, err
 	}
 
@@ -42,64 +44,71 @@ func Dial(string host, string password) (*Connection, error) {
 }
 
 // TODO improve, reuse login
-func (c *Connection) Execute(string cmd) (string, error) {	
-	if request, err := CreateCommandRequest(c.id, cmd); err != nil {
-		return nil, err
+func (c *Connection) Execute(cmd string) (string, error) {	
+	request, err := packet.CreateCommandRequest(c.id, cmd)
+	if err != nil {
+		return "", err
 	}	
-
-	if _, err := c.conn.Write(request.encoded); err != nil {
-		return nil, err
+	_, err = c.conn.Write(request.GetEncoded())
+	if err != nil {
+		return "", err
 	}
 
 	if err := c.read(); err != nil {
-		return nil, err
+		return "", err
 	}
 
-	if response, overflow, err := CreateCommandResponse(c.readbuf); err != nil {
-		return nil, err
+	response, overflow, err := packet.CreateCommandResponse(c.buffer)
+	if err != nil {
+		return "", err
 	}	
 
-	if name, _, _ := response.GetMetadata(); name == "unknown" {		
-		return nil, ErrorUnknown	
+	name, _, _ := response.GetMetadata()
+	if name == "unknown" {		
+		return "", ErrorUnknown	
 	}	
 
-	if name != "command" || p.method != "response" {
-		return ErrorResponseMismatch
+	if name != "command" || response.GetMethod() != "response" {
+		return "", ErrorResponseMismatch
 	}
 
-	if response.requestId != request.requestId {
-		return nil, ErrorIDMismatch
+	if response.GetId() != request.GetId() {
+		return "", ErrorIDMismatch
 	}
 
-	c.queuedbuf = overflow
-	c.id = response.requestId
+	c.queue = overflow
+	c.id = response.GetId()
 
-	return response.payload, nil	
+	return response.GetPayload, nil	
 }	
 
 func (c *Connection) Close() (error) {
 	return c.conn.Close()
 }
 
-func (c *Connection) login(string password) (*Packet, error) {
-	if loginRequest, err := CreateLoginRequest(password); err != nil {
+func (c *Connection) login(password string) (*Packet, error) {
+	loginRequest, err := packet.CreateLoginRequest(password)
+	if err != nil {
 		return nil, err
 	}	
 
-	if _, err := c.conn.Write(loginRequest.encoded); err != nil {
+	_, err := c.conn.Write(loginRequest.encoded)
+	if err != nil {
 		return nil, err
 	}
 
-	if loginResponse, overflow, err := c.loginReadAttempt(); err != nil {
+	loginResponse, overflow, err := c.loginReadAttempt()
+	if err != nil {
 		return nil, err
 	}	
 
-	if name, _, _ := loginResponse.GetMetadata(); name == "unknown" {
+	name, _, _ := loginResponse.GetMetadata()
+	if name == "unknown" {
 		// retry reading on first error. sometimes RCON protocol bugs out.
 		if loginResponse, overflow, err := c.loginReadAttempt(); err != nil {
 			return nil, err
 		}	
-		if name, _, _ := loginResponse.GetMetadata(); name == "unknown" {
+		if name, _, _ = loginResponse.GetMetadata(); name == "unknown" {
 			return nil, ErrorUnknown
 		}
 	}
@@ -126,7 +135,7 @@ func (c *Connection) loginReadAttempt() (*Packet, []byte, error) {
 		return nil, nil, err
 	}
 
-	return CreateLoginResponse(c.readbuf)		
+	return packet.CreateLoginResponse(c.buffer)		
 }
 
 func (c *Connection) read() (error) {
@@ -140,8 +149,7 @@ func (c *Connection) read() (error) {
 		copy(c.readbuf, c.queuedbuf)
 		size = len(c.queuedbuf)
 		c.queuedbuf = nil
-	} 
-	else if size, err = c.conn.Read(c.readbuf); err != nil {
+	} else if size, err = c.conn.Read(c.readbuf); err != nil {
 		return err
 	}
 
@@ -160,14 +168,14 @@ func (c *Connection) read() (error) {
 	return nil
 }
 
-func connect(string host) (*Connection)  {	
-	conn, err := net.DialTimeout("tcp", host, timeout)
+func connect(hostUri string) (*Connection, error)  {	
+	conn, err := net.DialTimeout("tcp", hostUri, timeout)
 	if err != nil {
 		return nil, err
 	}
 	c := &Connection{
 		conn: conn,
-		readbuf: make([]byte, Packet.PacketSizeMax)
+		readbuf: make([]byte, Packet.PacketSizeMax),
 	}
 	 return c, nil
 }
