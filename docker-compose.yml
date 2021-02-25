@@ -6,7 +6,10 @@ services:
     - "${PWD}:/usr/src/app"    
     command: "cobra init --pkg-name github.com/StarForger/neb-rcon"
   build:
-    build: .
+    image: golang:1.15
+    environment:
+      CGO_ENABLED: 0
+    working_dir: "/usr/src/app"
     volumes:
     - "${PWD}:/usr/src/app"    
-    command: "go build -a -o ./bin"      
+    command: "./build.sh github.com/StarForger/neb-rcon"

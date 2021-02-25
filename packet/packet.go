@@ -5,8 +5,9 @@ import (
 	"encoding/binary"   // translation between numbers and byte sequences
 	"errors"						// manipulate errors
 	"io"								// basic interfaces to I/O primitives
-	"strconv" 					// conversions to and from string
+	// "strconv" 					// conversions to and from string
 	"time"							// for measuring and displaying time
+	"regexp"
 )
 
 // From https://wiki.vg/RCON
@@ -98,11 +99,11 @@ func CreateCommandRequest(id int32, body string) (*Packet, error) {
 }
 
 func CreateLoginResponse(payload []byte) (*Packet, []byte, error) {
-	return createResponse(payload)
+	return createResponse(payload) // TODO need to verify expected requestType
 }
 
 func CreateCommandResponse(payload []byte) (*Packet, []byte, error) {
-	return createResponse(payload)
+	return createResponse(payload) // TODO need to verify expected requestType
 }
 
 func (p *Packet) GetMetadata() (name string, payloadMax int32, lengthMax int32) {
@@ -152,15 +153,17 @@ func (p *Packet) GetEncoded() ([]byte) {
 
 func (p *Packet) verify() (error) {
 	if p.length < PacketLengthMin {
-		return ErrorMinPayloadLength
+		return ErrorMinPayloadLength // TODO packet length
 	}
 	_, _, lengthMax := p.GetMetadata()
 	if p.length > lengthMax {
-		return ErrorMaxPayloadLength
+		return ErrorMaxPayloadLength // TODO packet length
 	}
-	if p.length != PacketLengthMin + int32(len(p.payload)) {
-		return ErrorMismatchedPayloadLength
-	}
+	// TODO null terminator may or maynot be included
+	// log.Printf(strconv.Itoa(len(p.payload)))
+	// if int(p.length) != PacketLengthMin + int(len(p.payload)) {
+	// 	return ErrorMismatchedPayloadLength
+	// }
 	return nil
 }
 
@@ -203,45 +206,25 @@ func createRequest(id int32, code int32, body string) (*Packet, error) {
 	return p, nil
 }
 
-func createResponse(data []byte ) (*Packet, []byte, error) {		
-	b := bytes.NewBuffer(data)
-	var (
-		intCheck string
-		length int
-		requestId int
-		requestType int
-		payload []byte
-		err error
-	)
-
-	binary.Read(b, binary.LittleEndian, &intCheck)
-	if length, err = strconv.Atoi(intCheck); err != nil {
-		return nil, nil, err
-	}
-	binary.Read(b, binary.LittleEndian, &intCheck)
-	if requestId, err = strconv.Atoi(intCheck); err != nil {
-		return nil, nil, err
-	}
-	binary.Read(b, binary.LittleEndian, &intCheck)
-	if requestType, err = strconv.Atoi(intCheck); err != nil {
-		return nil, nil, err
-	}
-
-	if payload, err = b.ReadBytes(0x00); err != nil {
-		if err == io.EOF {		
-			payload = payload[:len(payload)-1] // remove null terminator
-		}
-		return nil, nil, err
-	}		
-
+func createResponse(data []byte) (*Packet, []byte, error) {		
 	p := &Packet{
-		length: int32(length),
-		requestId: int32(requestId),
-		requestType: int32(requestType),
-		payload: string(payload),
 		method: "response",
 		encoded: data, 
 	}
+	b := bytes.NewBuffer(data)
+	
+	binary.Read(b, binary.LittleEndian, &p.length)
+	binary.Read(b, binary.LittleEndian, &p.requestId)
+	binary.Read(b, binary.LittleEndian, &p.requestType)
+	payload, err := b.ReadBytes(0x00)
+	if err == io.EOF {		
+		payload = payload[:len(payload)-1] // remove null terminator
+	}	else if err != nil {		
+		return nil, nil, err
+	}
+	
+	p.payload = string(payload)
+
 	if err := p.verify(); err != nil {
 		return nil, nil, err
 	} 

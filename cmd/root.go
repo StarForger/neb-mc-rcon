@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 NAME HERE <EMAIL ADDRESS>
+Copyright © 2021 StarForger <sparkforger@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/viper"
 	"net"
 	homedir "github.com/mitchellh/go-homedir"
+	"log"
 )
 
 var cfgFile string
@@ -66,14 +67,14 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.neb-rcon.yml)")
-	rootCmd.PersistentFlags().StringP("host", "h", "localhost", "RCON server's hostname")
+	rootCmd.PersistentFlags().StringP("host", "H", "localhost", "RCON server's hostname")
 	rootCmd.PersistentFlags().String("password", "", "RCON server's password")
-	rootCmd.PersistentFlags().Int("port", 27015, "RCON port")
+	rootCmd.PersistentFlags().Int("port", 25575, "RCON port")
 	// rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	err := viper.BindPFlags(rootCmd.PersistentFlags())
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 // initConfig reads in config file and ENV variables if set.

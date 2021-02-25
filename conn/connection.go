@@ -6,6 +6,9 @@ import (
 	"net"								// interface for network I/O
 	"sync"							// basic synchronization primitives such as mutual exclusion locks
 	"time"							// for measuring and displaying time
+	"log"
+	"strconv"
+	// "bytes"
 )
 
 // Timeout 10 seconds
@@ -49,6 +52,7 @@ func (c *Connection) Execute(cmd string) (string, error) {
 	if err != nil {
 		return "", err
 	}	
+
 	_, err = c.conn.Write(request.GetEncoded())
 	if err != nil {
 		return "", err
@@ -57,8 +61,8 @@ func (c *Connection) Execute(cmd string) (string, error) {
 	if err := c.read(); err != nil {
 		return "", err
 	}
-
-	response, overflow, err := packet.CreateCommandResponse(c.buffer)
+	// TODO overflow
+	response, _, err := packet.CreateCommandResponse(c.buffer)
 	if err != nil {
 		return "", err
 	}	
@@ -76,7 +80,7 @@ func (c *Connection) Execute(cmd string) (string, error) {
 		return "", ErrorIDMismatch
 	}
 
-	c.queue = overflow
+	// c.queue = overflow
 	c.id = response.GetId()
 
 	return response.GetPayload(), nil	
@@ -96,11 +100,11 @@ func (c *Connection) login(password string) (*packet.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	loginResponse, overflow, err := c.loginReadAttempt()
+	// TODO overflow
+	loginResponse, _, err := c.loginReadAttempt()
 	// Retry authentication once (RCON bug)	
 	if err == ErrorUnknown {
-		loginResponse, overflow, err = c.loginReadAttempt()
+		loginResponse, _, err = c.loginReadAttempt()
 	}
 	if err != nil {
 		return nil, err
@@ -110,7 +114,7 @@ func (c *Connection) login(password string) (*packet.Packet, error) {
 		return nil, ErrorIDMismatch
 	}
 
-	c.queue = overflow
+	// c.queue = overflow
 
 	return loginResponse, nil
 }
@@ -142,32 +146,44 @@ func (c *Connection) loginReadAttempt() (*packet.Packet, []byte, error) {
 	return loginResponse, overflow, nil
 }
 
+// TODO improve buffer use
+// TODO output buffer
+// TODO queue fix
 func (c *Connection) read() (error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.conn.SetReadDeadline(time.Now().Add(timeout))
+	c.conn.SetReadDeadline(time.Now().Add(timeout)) //TODO longer timeout on commands
 	var size int
 	var err error
 	if c.queue != nil {
 		copy(c.buffer, c.queue)
 		size = len(c.queue)
 		c.queue = nil
-	} else if size, err = c.conn.Read(c.buffer); err != nil {
-		return err
-	}
-
-	if size < 4 {		
-		s, err := c.conn.Read(c.buffer[size:])
+	} else {
+		size, err = c.conn.Read(c.buffer)
 		if err != nil {
 			return err
-		}  
-		size += s
-	}	
-
-	if size != 4 {
-		return ErrorPayloadRead
+		}
 	}
+
+	log.Printf(strconv.Itoa(size))	
+
+	// c.buffer = c.buffer[:size]
+
+	// if size < 4 {		
+	// 	s, err := c.conn.Read(c.buffer[size:])
+	// 	if err != nil {
+	// 		return err
+	// 	}  
+	// 	size += s		
+	// }	
+
+	// b := bytes.NewBuffer(c.buffer[:size])
+
+	// if size != 4 {
+	// 	return ErrorPayloadRead
+	// }
 
 	return nil
 }

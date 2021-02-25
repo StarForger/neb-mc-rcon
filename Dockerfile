@@ -1,9 +1,6 @@
 FROM golang:1.15
 
-ENV GO111MODULE=on \
-    GOOS=linux \
-    GARCH=amd64 \
-    CGO_ENABLED=0
+ENV GO111MODULE=on    
 
 WORKDIR /usr/src/app
 

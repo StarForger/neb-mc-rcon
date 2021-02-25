@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-const prompt = "$> "
+const prompt = "$ "
 
 func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	// Connect
 	conn, err := conn.Dial(hostUri, password)
 	if err != nil {
-		log.Fatal("Failed to connect to RCON server", err)
+		log.Fatal("Failed to connect to RCON server: ", err)
 	}
 	defer conn.Close()
 
@@ -32,7 +32,7 @@ func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 			continue
 		}
 
-		fmt.Fprintln(out, response)
+		print(out, response)
 		out.Write([]byte(prompt))
 	}
 
@@ -57,5 +57,13 @@ func Execute(hostUri string, password string, out io.Writer, command ... string)
 		return
 	}
 
-	fmt.Fprintln(out, response)
+	print(out, response)
+}
+
+func print(out io.Writer, msg string) {
+	// strip out unknown character
+	re := regexp.MustCompile("[§][\\w]")
+	msg = re.ReplaceAllLiteralString(string(msg), "")
+
+	fmt.Fprintln(out, msg)
 }
