@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/StarForger/neb-rcon/conn"
+	"github.com/StarForger/neb-mc-rcon/conn"
 	"os"
 	"log"
 	"bufio" 																	// implements buffered I/O.

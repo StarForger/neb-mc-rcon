@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"github.com/StarForger/neb-rcon/cli"
+	"github.com/StarForger/neb-mc-rcon/cli"
 	"github.com/spf13/cobra"	
 	"github.com/spf13/viper"
 	"net"
@@ -32,7 +32,7 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "neb-rcon [flags] [command ...]",
+	Use:   "neb-mc-rcon [flags] [command ...]",
 	Short: "CLI for RCON server interaction",
 	Long: `CLI for interacting with RCON game servers.
 	With no arguments, the CLI will run an interactive session 

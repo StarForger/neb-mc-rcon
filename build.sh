@@ -22,7 +22,7 @@ mkdir -p "build/${version}"
 for platform in "${platforms[@]}"
 do
   echo "${platform}"
-  
+
   platform_split=(${platform//\// })
   GOOS=${platform_split[0]}
   GOARCH=${platform_split[1]}
@@ -37,7 +37,7 @@ do
   fi
 
   env CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
-    -ldflags="-X 'github.com/StarForger/neb-rcon/cmd.BuildVersion=${version}'" \
+    -ldflags="-X 'github.com/StarForger/neb-mc-rcon/cmd.BuildVersion=${version}'" \
     -a -o "${folder_name}/${output_name}" $package
 
   if [ $? -ne 0 ]; then

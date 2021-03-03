@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/StarForger/neb-rcon/cmd"
+import "github.com/StarForger/neb-mc-rcon/cmd"
 
 func main() {
 	cmd.Execute()

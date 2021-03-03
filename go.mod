@@ -1,4 +1,4 @@
-module github.com/StarForger/neb-rcon
+module github.com/StarForger/neb-mc-rcon
 
 go 1.15
 
