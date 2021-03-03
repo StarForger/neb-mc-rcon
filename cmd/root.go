@@ -37,8 +37,8 @@ var rootCmd = &cobra.Command{
 	If arguments are included, they are sent as commands to the server.
 	For example:
 
-	rcon -h example.com 
-	rcon -h minecraft.com stop
+	rcon -H example.com 
+	rcon -H minecraft.com stop
 	RCON_PORT=25575 rcon list
 
 `,
@@ -87,9 +87,9 @@ func initConfig() {
 		home, err := homedir.Dir()
 		cobra.CheckErr(err)
 
-		// Search config in home directory with name ".neb-rcon" (without extension).
+		// Search config in home directory with name ".rcon" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".neb-rcon")
+		viper.SetConfigName(".rcon")
 		viper.SetConfigType("yml")
 	}
 	viper.SetEnvPrefix("rcon")

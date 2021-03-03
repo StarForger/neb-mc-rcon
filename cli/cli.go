@@ -8,9 +8,10 @@ import (
 	"io"
 	"fmt"
 	"strings"
+	"regexp"
 )
 
-const prompt = "$ "
+const prompt = "[rcon] $ "
 
 func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	// Connect

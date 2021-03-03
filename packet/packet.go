@@ -5,9 +5,9 @@ import (
 	"encoding/binary"   // translation between numbers and byte sequences
 	"errors"						// manipulate errors
 	"io"								// basic interfaces to I/O primitives
-	// "strconv" 					// conversions to and from string
+	"strconv" 					// conversions to and from string
 	"time"							// for measuring and displaying time
-	"regexp"
+	"log"
 )
 
 // From https://wiki.vg/RCON
@@ -85,8 +85,8 @@ type Packet struct {
 }
 
 var ( 
-	ErrorMaxPayloadLength = errors.New("packet: payload length too large")
-	ErrorMinPayloadLength = errors.New("packet: payload length too small")
+	ErrorMaxLength = errors.New("packet: length too large")
+	ErrorMinLength = errors.New("packet: length too small")
 	ErrorMismatchedPayloadLength = errors.New("packet: payload length mismatch")
 )
 
@@ -151,19 +151,15 @@ func (p *Packet) GetEncoded() ([]byte) {
 	return p.encoded
 }
 
+// TODO if requestId is -1 then invalid response
 func (p *Packet) verify() (error) {
 	if p.length < PacketLengthMin {
-		return ErrorMinPayloadLength // TODO packet length
+		return ErrorMinLength
 	}
 	_, _, lengthMax := p.GetMetadata()
 	if p.length > lengthMax {
-		return ErrorMaxPayloadLength // TODO packet length
+		return ErrorMaxLength
 	}
-	// TODO null terminator may or maynot be included
-	// log.Printf(strconv.Itoa(len(p.payload)))
-	// if int(p.length) != PacketLengthMin + int(len(p.payload)) {
-	// 	return ErrorMismatchedPayloadLength
-	// }
 	return nil
 }
 
@@ -217,8 +213,8 @@ func createResponse(data []byte) (*Packet, []byte, error) {
 	binary.Read(b, binary.LittleEndian, &p.requestId)
 	binary.Read(b, binary.LittleEndian, &p.requestType)
 	payload, err := b.ReadBytes(0x00)
-	if err == io.EOF {		
-		payload = payload[:len(payload)-1] // remove null terminator
+	if err == io.EOF {
+		payload = payload[:len(payload)-1] // remove EOF
 	}	else if err != nil {		
 		return nil, nil, err
 	}
@@ -228,12 +224,16 @@ func createResponse(data []byte) (*Packet, []byte, error) {
 	if err := p.verify(); err != nil {
 		return nil, nil, err
 	} 
-	// remainder should just be null terminator but might be start of next packet	
+	// remainder might be start of next packet	
 	if len(data) == 4 + int(p.length)  {
 		return p, nil, nil
 	}
 
-	return p, data[4 + int(p.length):], nil // remove "length" aswell
+	log.Printf("frag")
+	log.Printf(strconv.Itoa(len(data)))
+	log.Printf(strconv.Itoa(int(p.length)))
+
+	return p, data[4 + int(p.length):], nil
 } 
 
 func createRequestId(id int32) (int32) {
