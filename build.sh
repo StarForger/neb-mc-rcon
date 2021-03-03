@@ -11,29 +11,31 @@ fi
 package_split=(${package//\// })
 package_name=${package_split[-1]}
 
-# platforms=("windows/amd64" "linux/amd64")
-platforms=("windows/amd64")
-
-
+platforms=( \
+  # "linux/amd64" \
+  "windows/amd64" \
+)
 
 mkdir -p bin
+mkdir -p "build/${version}"
 
 for platform in "${platforms[@]}"
 do
+  echo "${platform}"
   platform_split=(${platform//\// })
   GOOS=${platform_split[0]}
   GOARCH=${platform_split[1]}
-  folder_name="bin/${GOOS}/${GOARCH}"
+  folder_name="bin/${GOOS}/${GOARCH}/${version}"
 
   mkdir -p "${folder_name}" 
 
-  output_name=${package_name}
+  output_name="${package_name}"
 
   if [ $GOOS = "windows" ]; then
     output_name+='.exe'
   fi
 
-  env GOOS=$GOOS GOARCH=$GOARCH go build \
+  env CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
     -ldflags="-X 'github.com/StarForger/neb-rcon/cmd.BuildVersion=${version}'" \
     -a -o "${folder_name}/${output_name}" $package
 
@@ -44,5 +46,5 @@ do
 
   tar_name="${output_name}-${GOOS}-${GOARCH}.tgz"
 
-  # tar -C "${folder_name}/" -czf "bin/${tar_name}" ${output_name}
+  tar -C "${folder_name}/" -czf "build/${version}/${tar_name}" ${output_name}
 done
