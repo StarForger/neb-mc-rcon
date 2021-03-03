@@ -1,17 +1,16 @@
 package conn
 
 import (	
-	"github.com/StarForger/neb-rcon/packet"
 	"errors"						// manipulate errors	
 	"net"								// interface for network I/O
 	"sync"							// basic synchronization primitives such as mutual exclusion locks
 	"time"							// for measuring and displaying time
-	"log"
-	"strconv"
 )
 
-// Timeout 10 seconds
-const timeout = 10 * time.Second
+const (
+	connTimeout = 10 * time.Second
+	readTimeout = 1 * time.Minute
+)
 
 type Connection struct {
 	id				int32
@@ -30,7 +29,7 @@ func Dial(hostUri string, password string) (*Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	loginPacket, err := c.login(password)
 	if err != nil {
 		return nil, err
@@ -42,7 +41,7 @@ func Dial(hostUri string, password string) (*Connection, error) {
 }
 
 func (c *Connection) Execute(cmd string) (string, error) {	
-	request, err := packet.CreateCommandRequest(c.id, cmd)
+	request, err := CreateCommandRequest(c.id, cmd)
 	if err != nil {
 		return "", err
 	}	
@@ -57,7 +56,7 @@ func (c *Connection) Execute(cmd string) (string, error) {
 		return "", err
 	}
 
-	response, err := packet.CreateCommandResponse(data)
+	response, err := CreateCommandResponse(data)
 	if err != nil {
 		return "", err
 	}	
@@ -78,8 +77,9 @@ func (c *Connection) Close() (error) {
 	return c.conn.Close()
 }
 
-func (c *Connection) login(password string) (*packet.Packet, error) {
-	loginRequest, err := packet.CreateLoginRequest(password)
+func (c *Connection) login(password string) (*Packet, error) {
+
+	loginRequest, err := CreateLoginRequest(password)
 	if err != nil {
 		return nil, err
 	}	
@@ -88,7 +88,7 @@ func (c *Connection) login(password string) (*packet.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	loginResponse, err := c.loginReadAttempt()
 	// Retry authentication once (RCON bug)	
 	if err == ErrorResponseMismatch {
@@ -101,21 +101,22 @@ func (c *Connection) login(password string) (*packet.Packet, error) {
 	return loginResponse, nil
 }
 
-func (c *Connection) loginReadAttempt() (*packet.Packet, error) {	
+func (c *Connection) loginReadAttempt() (*Packet, error) {	
+
 	data, err := c.read()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	loginResponse, err := packet.CreateLoginResponse(data)
+	loginResponse, err := CreateLoginResponse(data)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}	
 
 	name, _ := loginResponse.GetMetadata()		
 
 	if name != "login" || loginResponse.GetMethod() != "response" {
-		return nil, nil, ErrorResponseMismatch
+		return nil, ErrorResponseMismatch
 	}	
 	
 	return loginResponse, nil
@@ -125,7 +126,7 @@ func (c *Connection) read() ([]byte, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.conn.SetReadDeadline(time.Now().Add(timeout)) //TODO longer timeout on commands
+	c.conn.SetReadDeadline(time.Now().Add(readTimeout))
 	var size int
 	var err error
 	if c.queue != nil {
@@ -137,9 +138,7 @@ func (c *Connection) read() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	log.Printf(strconv.Itoa(size))		
+	}		
 
 	if size < 4 {		
 		s, err := c.conn.Read(c.buffer[size:])
@@ -149,19 +148,19 @@ func (c *Connection) read() ([]byte, error) {
 		size += s
 	}	
 
-	return bytes.NewBuffer(c.buffer[:size])
+	return c.buffer[:size], nil
 }
 
 func connect(hostUri string) (*Connection, error)  {	
-	conn, err := net.DialTimeout("tcp", hostUri, timeout)
+	conn, err := net.DialTimeout("tcp", hostUri, connTimeout)
 	if err != nil {
 		return nil, err
 	}
 	c := &Connection{
 		conn: conn,
-		buffer: make([]byte, packet.PacketSizeMax),
+		buffer: make([]byte, SizeMax),
 	}
-	 return c, nil
+	return c, nil
 }
 
 

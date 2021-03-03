@@ -48,7 +48,7 @@ func Execute(hostUri string, password string, out io.Writer, command ... string)
 	// Connect	
 	conn, err := conn.Dial(hostUri, password)
 	if err != nil {
-		log.Fatal("Failed to connect to RCON server", err)
+		log.Fatal("Failed to connect to RCON server: ", err)
 	}
 	defer conn.Close()
 

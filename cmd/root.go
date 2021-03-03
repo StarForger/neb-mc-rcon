@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"github.com/StarForger/neb-rcon/cli"
-	"github.com/StarForger/neb-rcon/version"
 	"github.com/spf13/cobra"	
 	"github.com/spf13/viper"
 	"net"
@@ -50,7 +49,7 @@ var rootCmd = &cobra.Command{
 		ver := viper.GetBool("version")
 
 		if ver {
-			fmt.Fprintln(os.Stdout, version.BuildVersion)
+			fmt.Fprintln(os.Stdout, BuildVersion)
 			return
 		}
 

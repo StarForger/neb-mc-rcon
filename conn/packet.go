@@ -1,4 +1,4 @@
-package packet
+package conn
 
 import (
 	"bytes"							// manipulation of byte slices
@@ -126,9 +126,6 @@ func (p *Packet) GetMetadata() (name string, payloadMax int32) {
 		if p.requestType == typeCommandResponse {
 			name = "command"
 		}
-		if p.requestType == typeInvalidResponse {
-			name = "invalid"
-		}
 		payloadMax = payloadResponseMax	
 	}
 	return
@@ -173,7 +170,7 @@ func (p *Packet) verify(code int32) (error) {
 		return ErrorMismatchType
 	}
 	
-	if len(p.payload) != p.length - LengthMin {
+	if len(p.payload) != int(p.length) - LengthMin {
 		return ErrorMismatchedPayloadLength
 	}
 
@@ -218,33 +215,36 @@ func (p *Packet) encode() (error) {
 	return nil
 }
 
-func (p *Packet) decode() (error) {
+func (p *Packet) decode(data []byte) (error) {
 	// make buffer from encoded data
-	buffer := bytes.NewBuffer(p.encoded)
+	buffer := bytes.NewBuffer(data)
 	
 	// packet size
-	if err := binary.Read(b, binary.LittleEndian, &p.length); err != nil {
+	if err := binary.Read(buffer, binary.LittleEndian, &p.length); err != nil && err != io.EOF {
 		return err
 	}
 
 	// request id
-	if err := binary.Read(b, binary.LittleEndian, &p.requestId); err != nil {
+	if err := binary.Read(buffer, binary.LittleEndian, &p.requestId); err != nil && err != io.EOF {
 		return err
 	}
 
 	// type
-	if err := binary.Read(b, binary.LittleEndian, &p.requestType); err != nil {
+	if err := binary.Read(buffer, binary.LittleEndian, &p.requestType); err != nil && err != io.EOF {
 		return err
 	}
 
 	// payload
-	payload, err := b.ReadBytes(0x00)
-	if err == io.EOF {
-		payload = payload[:len(payload)-1] // remove EOF
-	}	else if err != nil {		
-		return err
-	}	
+	payload, err := buffer.ReadBytes(0x00)
+	if err != io.EOF {
+		if err != nil {
+			return err
+		}
+		payload = payload[:len(payload)-1] // remove null terminator		
+	} 
+	
 	p.payload = string(payload)
+	p.encoded = data[:4 + int(p.length)]
 
 	return nil
 }
@@ -273,15 +273,13 @@ func createResponse(code int32, data []byte) (*Packet, error) {
 	p := &Packet{
 		method: "response",
 	}
-	
-	if err := p.decode(); err != nil{
-		return nil, nil, err
-	}
 
-	p.encoded = data[:4 + int(p.length)]
+	if err := p.decode(data); err != nil{
+		return nil, err
+	}	
 
 	if err := p.verify(code); err != nil {
-		return nil, nil, err
+		return nil, err
 	} 	
 
 	return p, nil
