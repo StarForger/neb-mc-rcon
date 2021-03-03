@@ -12,7 +12,7 @@ package_split=(${package//\// })
 package_name=${package_split[-1]}
 
 platforms=( \
-  # "linux/amd64" \
+  "linux/amd64" \
   "windows/amd64" \
 )
 
@@ -22,6 +22,7 @@ mkdir -p "build/${version}"
 for platform in "${platforms[@]}"
 do
   echo "${platform}"
+  
   platform_split=(${platform//\// })
   GOOS=${platform_split[0]}
   GOARCH=${platform_split[1]}
