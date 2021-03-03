@@ -23,5 +23,5 @@ Create `.env` file with VERSION=_version#_
 and run:
 
 ```sh
-docker-compose build build
+docker-compose up build
 ```

@@ -21,8 +21,6 @@ mkdir -p "build/${version}"
 
 for platform in "${platforms[@]}"
 do
-  echo "${platform}"
-
   platform_split=(${platform//\// })
   GOOS=${platform_split[0]}
   GOARCH=${platform_split[1]}
