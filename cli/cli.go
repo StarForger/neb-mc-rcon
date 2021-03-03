@@ -24,10 +24,12 @@ func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	// Input Scan
 	input := bufio.NewScanner(in)
 	out.Write([]byte(prompt))
-	// TODO EOF?
 	for input.Scan() {
 		cmd := input.Text()
 		response, err := conn.Execute(cmd)
+		if err == io.EOF {
+			return
+		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Run error: ", err.Error())
 			continue
@@ -53,6 +55,9 @@ func Execute(hostUri string, password string, out io.Writer, command ... string)
 	// Send commands
 	cmds := strings.Join(command, " ")
 	response, err := conn.Execute(cmds)
+	if err == io.EOF {
+		return
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Execute error: ", err.Error())
 		return

@@ -5,9 +5,7 @@ import (
 	"encoding/binary"   // translation between numbers and byte sequences
 	"errors"						// manipulate errors
 	"io"								// basic interfaces to I/O primitives
-	"strconv" 					// conversions to and from string
 	"time"							// for measuring and displaying time
-	"log"
 )
 
 // From https://wiki.vg/RCON
@@ -57,22 +55,22 @@ import (
 //
 
 const (	
-	// Payload length max plus packet length minimum
-	PacketLengthMax			= 4106 
-	// Packet length max plus "length" Int32
-	PacketSizeMax				= 4110
 	// Two Int32 (requestId and type) plus two bytes (payload terminator and pad)
-	PacketLengthMin			= 10 
+	LengthMin							= 10 
+	// Payload max plus packet length minimum
+	LengthMax							= 4106 
+	// Packet length max plus "length" Int32
+	SizeMax								= 4110
 
-	typeLoginRequest		= 3
-	typeCommandRequest	= 2
+	idInvalid							=	-1
 
-	typeLoginResponse		= 2	
-	typeCommandResponse	= 0
-	typeInvalidResponse	= -1
+	typeLoginRequest			= 3
+	typeCommandRequest		= 2
+	typeLoginResponse			= 2	
+	typeCommandResponse		= 0	
 
-	payloadRequestMax		= 1024
-	payloadResponseMax  = 4096	
+	payloadRequestMax			= 1024
+	payloadResponseMax  	= 4096	
 )
 
 type Packet struct {
@@ -85,9 +83,12 @@ type Packet struct {
 }
 
 var ( 
-	ErrorMaxLength = errors.New("packet: length too large")
-	ErrorMinLength = errors.New("packet: length too small")
-	ErrorMismatchedPayloadLength = errors.New("packet: payload length mismatch")
+	ErrorMaxLength 								= errors.New("packet: length too large")
+	ErrorMinLength 								= errors.New("packet: length too small")
+	ErrorMismatchType							= errors.New("packet: type mismatch")
+	ErrorInvalidId								= errors.New("packet: unauthorised/incorrect password")
+	ErrorMismatchedPayloadLength 	= errors.New("packet: payload length mismatch")
+	ErrorUnknown 									= errors.New("packet: unknown type")	
 )
 
 func CreateLoginRequest(password string) (*Packet, error) {
@@ -98,18 +99,17 @@ func CreateCommandRequest(id int32, body string) (*Packet, error) {
 	return createRequest(id, typeCommandRequest, body)
 }
 
-func CreateLoginResponse(payload []byte) (*Packet, []byte, error) {
-	return createResponse(payload) // TODO need to verify expected requestType
+func CreateLoginResponse(payload []byte) (*Packet, error) {
+	return createResponse(typeLoginResponse, payload)
 }
 
-func CreateCommandResponse(payload []byte) (*Packet, []byte, error) {
-	return createResponse(payload) // TODO need to verify expected requestType
+func CreateCommandResponse(payload []byte) (*Packet, error) {
+	return createResponse(typeCommandResponse, payload)
 }
 
-func (p *Packet) GetMetadata() (name string, payloadMax int32, lengthMax int32) {
+func (p *Packet) GetMetadata() (name string, payloadMax int32) {
 	name = "unknown"
 	payloadMax = 0
-	lengthMax = PacketLengthMin
 	switch p.method {
 	case "request": 
 		if p.requestType == typeLoginRequest {
@@ -131,8 +131,11 @@ func (p *Packet) GetMetadata() (name string, payloadMax int32, lengthMax int32) 
 		}
 		payloadMax = payloadResponseMax	
 	}
-	lengthMax = lengthMax + payloadMax
 	return
+}
+
+func (p *Packet) GetLength() (int32) {
+	return p.length
 }
 
 func (p *Packet) GetId() (int32) {
@@ -151,89 +154,137 @@ func (p *Packet) GetEncoded() ([]byte) {
 	return p.encoded
 }
 
-// TODO if requestId is -1 then invalid response
-func (p *Packet) verify() (error) {
-	if p.length < PacketLengthMin {
+func (p *Packet) verify(code int32) (error) {
+	_, payloadMax := p.GetMetadata()
+
+	if p.length < LengthMin {
 		return ErrorMinLength
 	}
-	_, _, lengthMax := p.GetMetadata()
-	if p.length > lengthMax {
+	
+	if p.length > payloadMax + LengthMin {
 		return ErrorMaxLength
 	}
+
+	if p.requestId == idInvalid {
+		return ErrorInvalidId
+	}
+
+	if p.requestType != code {
+		return ErrorMismatchType
+	}
+	
+	if len(p.payload) != p.length - LengthMin {
+		return ErrorMismatchedPayloadLength
+	}
+
 	return nil
 }
 
-func (p *Packet) encode() {
-	buffer := bytes.NewBuffer(make([]byte, 0, p.length + 4)) // including size of "length"
+func (p *Packet) encode() (error) {
+	// make buffer including size of "length"
+	buffer := bytes.NewBuffer(make([]byte, 0, p.length + 4)) 
 
 	// packet size
-	binary.Write(buffer, binary.LittleEndian, p.length)
+	if err := binary.Write(buffer, binary.LittleEndian, p.length); err != nil {
+		return err
+	}
 
 	// request id
-	binary.Write(buffer, binary.LittleEndian, p.requestId)
+	if err := binary.Write(buffer, binary.LittleEndian, p.requestId); err != nil {
+		return err
+	}
 
 	// type
-	binary.Write(buffer, binary.LittleEndian, p.requestType)
+	if err := binary.Write(buffer, binary.LittleEndian, p.requestType); err != nil {
+		return err
+	}
 
 	// payload
 	buffer.WriteString(p.payload)
 
 	// null terminator
-	binary.Write(buffer, binary.LittleEndian, byte(0))
+	if err := binary.Write(buffer, binary.LittleEndian, byte(0)); err != nil {
+		return err
+	}
 
 	// pad
-	binary.Write(buffer, binary.LittleEndian, byte(0))
+	if err := binary.Write(buffer, binary.LittleEndian, byte(0)); err != nil {
+		return err
+	}
 
+	// assign to encoded
 	p.encoded = buffer.Bytes()
+
+	return nil
+}
+
+func (p *Packet) decode() (error) {
+	// make buffer from encoded data
+	buffer := bytes.NewBuffer(p.encoded)
+	
+	// packet size
+	if err := binary.Read(b, binary.LittleEndian, &p.length); err != nil {
+		return err
+	}
+
+	// request id
+	if err := binary.Read(b, binary.LittleEndian, &p.requestId); err != nil {
+		return err
+	}
+
+	// type
+	if err := binary.Read(b, binary.LittleEndian, &p.requestType); err != nil {
+		return err
+	}
+
+	// payload
+	payload, err := b.ReadBytes(0x00)
+	if err == io.EOF {
+		payload = payload[:len(payload)-1] // remove EOF
+	}	else if err != nil {		
+		return err
+	}	
+	p.payload = string(payload)
+
+	return nil
 }
 
 func createRequest(id int32, code int32, body string) (*Packet, error) {
 	p := &Packet{
-		length: PacketLengthMin + int32(len(body)),
+		length: LengthMin + int32(len(body)),
 		requestId: createRequestId(id),
 		requestType: code,
 		payload: body,
 		method: "request", 
 	}
-	if err := p.verify(); err != nil {
+
+	if err := p.encode(); err != nil{
 		return nil, err
-	} 
-	p.encode()
+	}
+
+	if err := p.verify(code); err != nil {
+		return nil, err
+	}	
+
 	return p, nil
 }
 
-func createResponse(data []byte) (*Packet, []byte, error) {		
+func createResponse(code int32, data []byte) (*Packet, error) {		
 	p := &Packet{
 		method: "response",
-		encoded: data, 
-	}
-	b := bytes.NewBuffer(data)
-	
-	binary.Read(b, binary.LittleEndian, &p.length)
-	binary.Read(b, binary.LittleEndian, &p.requestId)
-	binary.Read(b, binary.LittleEndian, &p.requestType)
-	payload, err := b.ReadBytes(0x00)
-	if err == io.EOF {
-		payload = payload[:len(payload)-1] // remove EOF
-	}	else if err != nil {		
-		return nil, nil, err
 	}
 	
-	p.payload = string(payload)
-
-	if err := p.verify(); err != nil {
+	if err := p.decode(); err != nil{
 		return nil, nil, err
-	} 
-	// remainder might be start of next packet	
-	if len(data) == 4 + int(p.length)  {
-		return p, nil, nil
 	}
 
-	log.Printf("frag")
-	log.Printf(strconv.Itoa(len(data)))
-	log.Printf(strconv.Itoa(int(p.length)))
+	p.encoded = data[:4 + int(p.length)]
 
-	return p, data[4 + int(p.length):], nil
+	if err := p.verify(code); err != nil {
+		return nil, nil, err
+	} 	
+
+	return p, nil
 } 
 
 func createRequestId(id int32) (int32) {

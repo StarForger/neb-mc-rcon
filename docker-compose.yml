@@ -12,4 +12,4 @@ services:
     working_dir: "/usr/src/app"
     volumes:
     - "${PWD}:/usr/src/app"    
-    command: "./build.sh github.com/StarForger/neb-rcon"
+    command: "./build.sh github.com/StarForger/neb-rcon ${VERSION}"

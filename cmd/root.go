@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"github.com/StarForger/neb-rcon/cli"
+	"github.com/StarForger/neb-rcon/version"
 	"github.com/spf13/cobra"	
 	"github.com/spf13/viper"
 	"net"
@@ -26,7 +27,9 @@ import (
 	"log"
 )
 
-var cfgFile string
+var ( 
+	cfgFile string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -44,6 +47,13 @@ var rootCmd = &cobra.Command{
 `,
 	
 	Run: func(cmd *cobra.Command, args []string) { 
+		ver := viper.GetBool("version")
+
+		if ver {
+			fmt.Fprintln(os.Stdout, version.BuildVersion)
+			return
+		}
+
 		host := viper.GetString("host")
 		port := viper.GetString("port")
 		pwd := viper.GetString("password")
@@ -57,7 +67,6 @@ var rootCmd = &cobra.Command{
 		}
 	},
 }
-//TODO Version, help, verbose
 
 func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
@@ -66,11 +75,11 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.neb-rcon.yml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.rcon.yml)")
 	rootCmd.PersistentFlags().StringP("host", "H", "localhost", "RCON server's hostname")
 	rootCmd.PersistentFlags().String("password", "", "RCON server's password")
 	rootCmd.PersistentFlags().Int("port", 25575, "RCON port")
-	// rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().BoolP("version", "v", false, "version number")
 	err := viper.BindPFlags(rootCmd.PersistentFlags())
 	if err != nil {
 		log.Fatal(err)

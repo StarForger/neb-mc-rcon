@@ -22,11 +22,7 @@ type Connection struct {
 }
 
 var ( 	
-	ErrorPayloadRead 				= errors.New("connection: payload response can't be read")
-	ErrorResponseMismatch 	= errors.New("connection: response type mismatch")
-	ErrorIDMismatch 				= errors.New("connection: response/request id mismatch")
-	ErrorPassword 					= errors.New("connection: password incorrect")
-	ErrorUnknown 						= errors.New("connection: unknown response")	
+	ErrorResponseMismatch = errors.New("connection: response type mismatch")		
 )
 
 func Dial(hostUri string, password string) (*Connection, error) {	
@@ -45,7 +41,6 @@ func Dial(hostUri string, password string) (*Connection, error) {
 	return c, nil
 }
 
-// TODO improve, reuse login
 func (c *Connection) Execute(cmd string) (string, error) {	
 	request, err := packet.CreateCommandRequest(c.id, cmd)
 	if err != nil {
@@ -62,25 +57,18 @@ func (c *Connection) Execute(cmd string) (string, error) {
 		return "", err
 	}
 
-	response, overflow, err := packet.CreateCommandResponse(data)
+	response, err := packet.CreateCommandResponse(data)
 	if err != nil {
 		return "", err
 	}	
 
-	name, _, _ := response.GetMetadata()
-	if name == "unknown" {		
-		return "", ErrorUnknown	
-	}	
+	name, _ := response.GetMetadata()
 
 	if name != "command" || response.GetMethod() != "response" {
 		return "", ErrorResponseMismatch
 	}
 
-	if response.GetId() != request.GetId() {
-		return "", ErrorIDMismatch
-	}
-
-	c.queue = overflow
+	c.queue = data[response.GetLength():]
 	c.id = response.GetId()
 
 	return response.GetPayload(), nil	
@@ -101,55 +89,38 @@ func (c *Connection) login(password string) (*packet.Packet, error) {
 		return nil, err
 	}
 	
-	loginResponse, overflow, err := c.loginReadAttempt()
+	loginResponse, err := c.loginReadAttempt()
 	// Retry authentication once (RCON bug)	
-	if err == ErrorUnknown {
-		loginResponse, overflow, err = c.loginReadAttempt()
+	if err == ErrorResponseMismatch {
+		loginResponse, err = c.loginReadAttempt()
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if loginResponse.GetId() != loginRequest.GetId() {
-		return nil, ErrorIDMismatch
-	}
-
-	c.queue = overflow
-
 	return loginResponse, nil
 }
 
-func (c *Connection) loginReadAttempt() (*packet.Packet, []byte, error) {	
+func (c *Connection) loginReadAttempt() (*packet.Packet, error) {	
 	data, err := c.read()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	loginResponse, overflow, err := packet.CreateLoginResponse(data)
+	loginResponse, err := packet.CreateLoginResponse(data)
 	if err != nil {
 		return nil, nil, err
 	}	
 
-	name, _, _ := loginResponse.GetMetadata()
-
-	if name == "unknown" {
-		return nil, nil, ErrorUnknown
-	}
-
-	if name == "invalid" {
-		return nil, nil, ErrorPassword
-	}		
+	name, _ := loginResponse.GetMetadata()		
 
 	if name != "login" || loginResponse.GetMethod() != "response" {
 		return nil, nil, ErrorResponseMismatch
 	}	
 	
-	return loginResponse, overflow, nil
+	return loginResponse, nil
 }
 
-// TODO improve buffer use
-// TODO output buffer
-// TODO queue fix
 func (c *Connection) read() ([]byte, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
