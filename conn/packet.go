@@ -6,7 +6,7 @@ import (
 	"errors"						// manipulate errors
 	"io"								// basic interfaces to I/O primitives
 	"time"							// for measuring and displaying time
-	"log"
+	// "log"
 )
 
 // From https://wiki.vg/RCON
@@ -155,7 +155,7 @@ func (p *Packet) GetEncoded() ([]byte) {
 func (p *Packet) verify(code int32) (error) {
 	_, payloadMax := p.GetMetadata()
 
-	if p.length < LengthMin {
+	if p.length < LengthMin {	
 		return ErrorMinLength
 	}
 	
@@ -172,9 +172,6 @@ func (p *Packet) verify(code int32) (error) {
 	}
 	
 	if len(p.payload) != int(p.length) - LengthMin {	
-		log.Println(p.method)	
-		log.Println(len(p.payload))
-		log.Println((int(p.length) - LengthMin))
 		return ErrorMismatchedPayloadLength
 	}
 
@@ -249,7 +246,7 @@ func (p *Packet) decode(data []byte) (error) {
 	} 
 	
 	p.payload = string(payload)
-	p.encoded = data[:4 + int(p.length)]
+	p.encoded = data[:4 + int(p.length)] // Include length
 
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 
 const prompt = "[rcon] $ "
 
+// Looped run
 func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	// Connect
 	conn, err := conn.Dial(hostUri, password)
@@ -26,16 +27,19 @@ func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	out.Write([]byte(prompt))
 	for input.Scan() {
 		cmd := input.Text()
-		response, err := conn.Execute(cmd)
-		if err == io.EOF {
-			return
+		if len(cmd) > 0 {
+			response, err := conn.Execute(cmd)
+			if err == io.EOF {
+				return
+			}
+			if err != nil {			
+				fmt.Fprintln(os.Stderr, "Run error: ", err.Error())
+				continue						
+			}
+		
+			print(out, response)
 		}
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Run error: ", err.Error())
-			continue
-		}
-
-		print(out, response)
+					
 		out.Write([]byte(prompt))
 	}
 
@@ -44,6 +48,7 @@ func Run(hostUri string, password string, in io.Reader, out io.Writer) {
 	}
 }
 
+// Execute command
 func Execute(hostUri string, password string, out io.Writer, command ... string) {
 	// Connect	
 	conn, err := conn.Dial(hostUri, password)

@@ -5,6 +5,7 @@ import (
 	"net"								// interface for network I/O
 	"sync"							// basic synchronization primitives such as mutual exclusion locks
 	"time"							// for measuring and displaying time
+	// "log"
 )
 
 const (
@@ -67,7 +68,7 @@ func (c *Connection) Execute(cmd string) (string, error) {
 		return "", ErrorResponseMismatch
 	}
 
-	c.queue = data[response.GetLength():]
+	c.queue = data[response.GetLength() + 4:] // include length
 	c.id = response.GetId()
 
 	return response.GetPayload(), nil	
