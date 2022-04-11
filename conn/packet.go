@@ -6,6 +6,7 @@ import (
 	"errors"						// manipulate errors
 	"io"								// basic interfaces to I/O primitives
 	"time"							// for measuring and displaying time
+	"log"
 )
 
 // From https://wiki.vg/RCON
@@ -74,12 +75,12 @@ const (
 )
 
 type Packet struct {
-	length			int32
-	requestId		int32
+	length			int32		// size of packet (less length itself)
+	requestId		int32   // unique id
 	requestType int32   // type named requestType
-	payload			string 	// parsed to []byte at encode 
-	method			string  // for differentiating requestType codes	
-	encoded			[]byte  // entire packet encoded to binary	
+	payload			string 	// parsed to []byte at encode
+	method			string  // for differentiating requestType codes
+	encoded			[]byte  // entire packet encoded to binary
 }
 
 var ( 
@@ -170,7 +171,10 @@ func (p *Packet) verify(code int32) (error) {
 		return ErrorMismatchType
 	}
 	
-	if len(p.payload) != int(p.length) - LengthMin {
+	if len(p.payload) != int(p.length) - LengthMin {	
+		log.Println(p.method)	
+		log.Println(len(p.payload))
+		log.Println((int(p.length) - LengthMin))
 		return ErrorMismatchedPayloadLength
 	}
 
@@ -235,6 +239,7 @@ func (p *Packet) decode(data []byte) (error) {
 	}
 
 	// payload
+	// TODO check
 	payload, err := buffer.ReadBytes(0x00)
 	if err != io.EOF {
 		if err != nil {
