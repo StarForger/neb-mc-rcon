@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 		ver := viper.GetBool("version")
 
 		if ver {
-			fmt.Fprintln(os.Stdout, BuildVersion)
+			fmt.Fprintln(os.Stdout, "Version " + BuildVersion)
 			return
 		}
 
